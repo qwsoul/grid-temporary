@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>grid — workplace messenger</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://jsdelivr.net"></script>
+    <!-- React & ReactDOM CDNs -->
+    <script src="https://unpkg.com" crossorigin></script>
+    <script src="https://unpkg.com" crossorigin></script>
+    <!-- Babel CDN для компиляции JSX -->
+    <script src="https://unpkg.com"></script>
+    <!-- Socket.io Client -->
+    <script src="https://socket.io"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans antialiased h-screen overflow-hidden">
+
+    <div id="root" class="h-full"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // ВАЖНО: Замени на URL твоего Web Service после деплоя на Render
+        const BACKEND_URL = 'http://localhost:10000'; 
+
+        function App() {
+            const [socket, setSocket] = useState(null);
+            const [currentUser, setCurrentUser] = useState({ userId: 'Connecting...', avatarColor: 'bg-slate-700' });
+            
+            const [chats, setChats] = useState([]); 
+            const [activeChat, setActiveChat] = useState(null);
+            const [messagesByChat, setMessagesByChat] = useState({}); 
+            
+            const [inputMessage, setInputMessage] = useState('');
+            const [targetUserIdInput, setTargetUserIdInput] = useState('');
+            const [groupNameInput, setGroupNameInput] = useState('');
+            
+            const [uiTab, setUiTab] = useState('dm'); 
+            const messagesEndRef = useRef(null);
+
+            // Инициализация сокетов
+            useEffect(() => {
+                const s = io(BACKEND_URL);
+                setSocket(s);
+
+                s.on('session-init', (data) => {
+                    setCurrentUser(data);
+                });
+
+                s.on('receive-message', (msg) => {
+                    setMessagesByChat(prev => {
+                        const currentChatMsgs = prev[msg.roomId] || [];
+                        return { ...prev, [msg.roomId]: [...currentChatMsgs, msg] };
+                    });
+                });
+
+                return () => s.disconnect();
+            }, []);
+
+            useEffect(() => {
+                messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+            }, [messagesByChat, activeChat]);
+
+            const handleStartDM = (e) => {
+                e.preventDefault();
+                if (!targetUserIdInput.trim() || targetUserIdInput === currentUser.userId) return;
+
+                socket.emit('start-dm', { targetUserId: targetUserIdInput.trim() }, (response) => {
+                    if (response.error) { alert(response.error); return; }
+                    const newChat = { id: response.roomId, name: response.targetUserId, type: 'dm', color: 'bg-indigo-600' };
+                    setChats(prev => prev.some(c => c.id === newChat.id) ? prev : [newChat, ...prev]);
+                    setActiveChat(newChat);
+                    setTargetUserIdInput('');
+                });
+            };
+
+            const handleCreateGroup = (e) => {
+                e.preventDefault();
+                if (!groupNameInput.trim()) return;
+
+                socket.emit('create-group', { groupName: groupNameInput.trim() }, (response) => {
+                    const newChat = { id: response.groupId, name: response.groupName, type: 'group', color: response.color };
+                    setChats(prev => [newChat, ...prev]);
+                    setActiveChat(newChat);
+                    setGroupNameInput('');
+                });
+            };
+
+            const handleSendMessage = (e) => {
+                e.preventDefault();
+                if (!inputMessage.trim() || !activeChat) return;
+                socket.emit('send-message', { roomId: activeChat.id, text: inputMessage.trim() });
+                setInputMessage('');
+            };
+
+            const getInitials = (name) => name ? name.slice(0, 2).toUpperCase() : '??';
+            return (
+                <div class="flex h-screen w-screen overflow-hidden bg-slate-950">
+                    
+                    {/* ЛЕВАЯ ПАНЕЛЬ */}
+                    <div class="w-80 md:w-96 flex flex-col border-r border-slate-800 bg-slate-900/50 backdrop-blur-xl">
+                        <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold shadow-md ${currentUser.avatarColor}`}>
+                                    {getInitials(currentUser.userId)}
+                                </div>
+                                <div>
+                                    <h1 class="text-sm font-semibold tracking-wider text-slate-400 uppercase">workspace</h1>
+                                    <div class="text-base font-bold text-emerald-400 select-all">{currentUser.userId}</div>
+                                </div>
+                            </div>
+                            <span class="text-2xl font-black bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">grid.</span>
+                        </div>
+
+                        <div class="px-4 pt-3 flex gap-2 text-xs">
+                            <button onClick={() => setUiTab('dm')} class={`flex-1 py-2 rounded-lg font-medium transition-all ${uiTab === 'dm' ? 'bg-slate-800 text-indigo-400 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}>💬 Личный чат</button>
+                            <button onClick={() => setUiTab('group')} class={`flex-1 py-2 rounded-lg font-medium transition-all ${uiTab === 'group' ? 'bg-slate-800 text-emerald-400 shadow-inner' : 'text-slate-500 hover:text-slate-300'}`}>👥 Создать группу</button>
+                        </div>
+
+                        <div class="p-4 border-b border-slate-800/60">
+                            {uiTab === 'dm' ? (
+                                <form onSubmit={handleStartDM} class="flex gap-2">
+                                    <input type="text" placeholder="Введите user-xxxxx..." value={targetUserIdInput} onChange={(e) => setTargetUserIdInput(e.target.value)} class="flex-1 px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:border-indigo-500 text-slate-100 placeholder-slate-600"/>
+                                    <button type="submit" class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg">Начать</button>
+                                </form>
+                            ) : (
+                                <form onSubmit={handleCreateGroup} class="flex gap-2">
+                                    <input type="text" placeholder="Название группы..." value={groupNameInput} onChange={(e) => setGroupNameInput(e.target.value)} class="flex-1 px-3 py-2 text-sm bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:border-emerald-500 text-slate-100 placeholder-slate-600"/>
+                                    <button type="submit" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg">Создать</button>
+                                </form>
+                            )}
+                        </div>
+
+                        <div class="flex-1 overflow-y-auto p-2 space-y-1">
+                            {chats.length === 0 ? (
+                                <div class="text-center text-sm text-slate-600 mt-8 px-4">Активных переписок нет. Добавьте коллегу выше.</div>
+                            ) : (
+                                chats.map(chat => {
+                                    const isSelected = activeChat?.id === chat.id;
+                                    const msgs = messagesByChat[chat.id] || [];
+                                    const lastMsg = msgs[msgs.length - 1];
+                                    return (
+                                        <div key={chat.id} onClick={() => setActiveChat(chat)} class={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${isSelected ? 'bg-slate-800 shadow-md' : 'hover:bg-slate-900/60'}`}>
+                                            <div class={`w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold ${chat.color}`}>{getInitials(chat.name)}</div>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="flex items-center justify-between">
+                                                    <span class="font-semibold text-sm truncate text-slate-200">{chat.name}</span>
+                                                    {chat.type === 'group' && <span class="text-[10px] bg-slate-950 text-emerald-400 px-1.5 py-0.5 rounded-md font-mono">room</span>}
+                                                </div>
+                                                <p class="text-xs text-slate-500 truncate mt-0.5">{lastMsg ? `${lastMsg.senderId === currentUser.userId ? 'Вы' : lastMsg.senderId}: ${lastMsg.text}` : 'Нет сообщений'}</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+
+                    {/* ПРАВАЯ ПАНЕЛЬ */}
+                    <div class="flex-1 flex flex-col bg-slate-900/20">
+                        {activeChat ? (
+                            <React.Fragment>
+                                <div class="p-4 border-b border-slate-800/60 flex items-center gap-3 bg-slate-900/40 backdrop-blur-md">
+                                    <div class={`w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold ${activeChat.color}`}>{getInitials(activeChat.name)}</div>
+                                    <div>
+                                        <h2 class="font-bold text-slate-100">{activeChat.name}</h2>
+                                        <p class="text-xs text-slate-500 capitalize">{activeChat.type === 'dm' ? 'Личная переписка' : 'Канал вещания'}</p>
+                                    </div>
+                                </div>
+
+                                <div class="flex-1 overflow-y-auto p-6 space-y-4">
+                                    {(messagesByChat[activeChat.id] || []).map((msg) => {
+                                        const isMe = msg.senderId === currentUser.userId;
+                                        return (
+                                            <div key={msg.id} class={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                                <div class={`flex gap-2 max-w-[70%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                                                    {!isMe && <div class={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white shrink-0 mt-1 ${msg.senderColor}`}>{getInitials(msg.senderId)}</div>}
+                                                    <div class={`p-3 rounded-2xl ${isMe ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-100 rounded-tl-none'}`}>
+                                                        {!isMe && <div class="text-[11px] font-bold text-indigo-300 mb-1 select-all">{msg.senderId}</div>}
+                                                        <p class="text-sm leading-relaxed break-words">{msg.text}</p>
+                                                        <div class="text-[10px] text-right mt-1 text-slate-300/60 font-mono">{msg.timestamp}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                    <div ref={messagesEndRef} />
+                                </div>
+
+                                <div class="p-4 bg-slate-900/40 border-t border-slate-800/60">
+                                    <form onSubmit={handleSendMessage} class="flex gap-2 max-w-4xl mx-auto">
+                                        <input type="text" placeholder="Напишите сообщение..." value={inputMessage} onChange={(e) => setInputMessage(e.target.value)} class="flex-1 px-4 py-3 bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:outline-none rounded-xl text-sm text-slate-100 placeholder-slate-600"/>
+                                        <button type="submit" class="px-5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl text-sm shadow-lg shadow-indigo-600/20">Отправить</button>
+                                    </form>
+                                </div>
+                            </React.Fragment>
+                        ) : (
+                            <div class="flex-1 flex flex-col items-center justify-center text-slate-600 select-none">
+                                <span class="text-6xl mb-2">⚡</span>
+                                <h3 class="text-lg font-bold text-slate-400">Добро пожаловать в grid</h3>
+                                <p class="text-sm max-w-xs text-center mt-1">Выберите существующий чат или начните новое обсуждение с коллегами.</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
