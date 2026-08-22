@@ -4,17 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>grid — workplace messenger</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://jsdelivr.net"></script>
-    <!-- React & ReactDOM CDNs -->
-    <script src="https://unpkg.com" crossorigin></script>
-    <script src="https://unpkg.com" crossorigin></script>
-    <!-- Babel CDN для компиляции JSX -->
-    <script src="https://unpkg.com"></script>
-    <!-- Socket.io Client -->
-    <script src="https://socket.io"></script>
-
+    
+    <!-- 1. Стили Tailwind -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js
+" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    
+    <!-- 2. Ядро React -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.development.js
+" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    
+    <!-- 3. React DOM для отрисовки -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.development.js
+" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    
+    <!-- 4. Компилятор Babel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js
+" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    
+    <!-- 5. Клиент сокетов Socket.io -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js
+" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
+
 <body class="bg-slate-900 text-slate-100 font-sans antialiased h-screen overflow-hidden">
 
     <div id="root" class="h-full"></div>
